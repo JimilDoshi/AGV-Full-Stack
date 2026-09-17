@@ -1,72 +1,127 @@
 # AGV System Startup Guide
 
-Complete step-by-step procedure to bring the rover online from cold boot.
+Two operating modes are supported:
+
+| Mode | Use case |
+|---|---|
+| **Manual / Keyboard** | Teleoperation from Jetson keyboard |
+| **Autonomous** | Nav2 + SLAM — rover navigates to goals on its own |
 
 ---
 
-## Overview — what runs where
+## Hardware overview — what runs where
 
-| Device | What runs | Role |
+| Device | Keyboard mode | Autonomous mode |
 |---|---|---|
-| **ESP32** | `ESP32_UGV_Controller_from_Autoware` firmware | Real-time motor control, safety FSM |
-| **Raspberry Pi** | `agv_can_bridge` ROS 2 node | Translates `/cmd_vel` → CAN frames |
-| **Jetson** | `agv_keyboard` ROS 2 node | Publishes `/cmd_vel` from keyboard |
+| **ESP32** | Motor FSM firmware (always) | Motor FSM firmware (always) |
+| **Raspberry Pi** | `agv_can_bridge` (mode=1) | `agv_sensors` + `agv_can_bridge` (mode=2) |
+| **Jetson** | `agv_keyboard` teleop node | `agv_navigation` (SLAM + Nav2 + YOLO) + RViz2 |
 
-Start order: **ESP32 first → Pi second → Jetson last.**
+Start order always: **ESP32 first → Pi second → Jetson last.**
 
 ---
 
-## Step 1 — Flash the ESP32 (only needed after firmware update)
+## Before first run — fill in your rover dimensions
 
-On your development machine, open the project in PlatformIO and upload:
+Three files need your physical measurements. Fill these in once before building:
 
+### 1. `Raspberry Pi/agv_sensors/launch/sensors.launch.py`
+```python
+LIDAR_X  = 0.0   # FILL_IN_1 — LiDAR forward offset from rover centre (m)
+LIDAR_Z  = 0.0   # FILL_IN_2 — LiDAR height above ground (m)
+CAMERA_Z = 0.0   # FILL_IN_3 — Camera height above ground (m)
+```
+
+### 2. `Jetson/agv_navigation/urdf/agv.urdf.xacro`
+```xml
+<xacro:property name="ROVER_WIDTH"  value="0.0"/>  <!-- FILL_IN_1 — wheel to wheel (m) -->
+<xacro:property name="ROVER_LENGTH" value="0.0"/>  <!-- FILL_IN_2 — front to back (m) -->
+<xacro:property name="ROVER_HEIGHT" value="0.0"/>  <!-- FILL_IN_3 — ground to chassis top (m) -->
+```
+
+### 3. `Jetson/agv_navigation/config/costmap.yaml`
+```yaml
+robot_radius: 0.0       # FILL_IN — ROVER_WIDTH / 2  (m)
+inflation_radius: 0.0   # FILL_IN — robot_radius + 0.10  (m)
+```
+Set both occurrences (global_costmap and local_costmap).
+
+---
+
+## One-time install
+
+### On Raspberry Pi
+```bash
+sudo apt update
+sudo apt install -y \
+  ros-humble-rplidar-ros \
+  ros-humble-v4l2-camera \
+  ros-humble-image-transport \
+  ros-humble-rf2o-laser-odometry \
+  ros-humble-robot-state-publisher
+
+# Copy packages and build
+cd ~/agv_ws
+colcon build --packages-select agv_can_bridge agv_sensors
+source install/setup.bash
+```
+
+### On Jetson
+```bash
+sudo apt update
+sudo apt install -y \
+  ros-humble-slam-toolbox \
+  ros-humble-navigation2 \
+  ros-humble-nav2-bringup \
+  ros-humble-robot-state-publisher \
+  ros-humble-xacro
+
+pip install "numpy<2" ultralytics opencv-python-headless
+# numpy<2 is required — ultralytics/cv2 are compiled against NumPy 1.x and
+# will crash with "numpy.core.multiarray failed to import" on NumPy 2.x.
+
+# Copy packages and build
+cd ~/agv_ws
+colcon build --packages-select agv_keyboard agv_navigation
+source install/setup.bash
+```
+
+### On your Jetson (RViz2 — for autonomous mode)
+```bash
+sudo apt install -y ros-humble-rviz2
+```
+
+### ROS_DOMAIN_ID — set on BOTH Pi and Jetson
+```bash
+echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
+source ~/.bashrc
+```
+
+---
+
+---
+# MODE A — KEYBOARD / MANUAL TELEOPERATION
+---
+
+## Step 1 — Flash ESP32 (only after firmware update)
+
+On your dev Mac:
 ```bash
 cd "AGV Full Stack"
 pio run --target upload
-```
-
-Or use the PlatformIO IDE **Upload** button. After upload the ESP32 boots automatically and prints its state over USB serial at 115200 baud.
-
-To monitor:
-```bash
 pio device monitor --baud 115200
+# Confirm: ESP32 UGV v2.2.0   State : DISARMED
 ```
 
-You should see lines like `[CAN] TWAI started at 500 kbit/s` and `State : DISARMED`.
-
----
-
-## Step 2 — Raspberry Pi setup
-
-SSH into the Pi or open a terminal on it.
-
-### 2a — Bring up the CAN interface
-
-Run this once per boot (or add it to `/etc/rc.local` to automate):
+## Step 2 — Pi: bring up CAN + start bridge (mode=1)
 
 ```bash
+# Bring up CAN interface (once per boot)
 sudo ip link set can0 down 2>/dev/null || true
 sudo ip link set can0 type can bitrate 500000 restart-ms 100
 sudo ip link set can0 up
-```
 
-Verify it came up:
-
-```bash
-ip link show can0
-# should show: UP RUNNING
-```
-
-### 2b — Build the ROS 2 workspace (only needed once or after code changes)
-
-```bash
-cd ~/agv_ws
-colcon build --packages-select agv_can_bridge
-```
-
-### 2c — Source and run the bridge node
-
-```bash
+# Start bridge
 source /opt/ros/humble/setup.bash
 source ~/agv_ws/install/setup.bash
 
@@ -77,30 +132,9 @@ ros2 run agv_can_bridge cmd_vel_can_bridge --ros-args \
   -p mode:=1
 ```
 
-> **Parameters to tune for your rover:**
-> - `wheel_separation_m` — measure left-wheel centre to right-wheel centre in metres
-> - `max_wheel_speed_mps` — maximum linear speed of one wheel in m/s
-> - `mode` — `1` for Jetson keyboard, `2` for Autoware autonomous
+## Step 3 — Jetson: start keyboard teleop
 
-The terminal will show: `CAN bridge on can0 at 500000 bit/s; waiting for /cmd_vel`
-
-The node is now sending disabled CAN frames to the ESP32 at 50 Hz, keeping it alive.
-
----
-
-## Step 3 — Jetson setup
-
-Open a **new terminal** on the Jetson (must be a real terminal, not piped — the node uses raw keyboard input).
-
-### 3a — Build the ROS 2 workspace (only needed once or after code changes)
-
-```bash
-cd ~/agv_ws
-colcon build --packages-select agv_keyboard
-```
-
-### 3b — Source and run the keyboard teleop node
-
+Open a real terminal (not SSH piped):
 ```bash
 source /opt/ros/humble/setup.bash
 source ~/agv_ws/install/setup.bash
@@ -110,39 +144,128 @@ ros2 run agv_keyboard keyboard_teleop --ros-args \
   -p angular_speed_rps:=0.8
 ```
 
-> **Parameters:**
-> - `linear_speed_mps` — top forward/reverse speed in m/s (default 0.25)
-> - `angular_speed_rps` — top rotation rate in rad/s (default 0.8)
-
----
-
 ## Step 4 — Arm and drive
 
-Make sure the RC transmitter is on and **CH6 is set to the Jetson position** (middle).
-
-In the Jetson terminal:
+Set RC CH6 to **middle position** (Jetson mode).
 
 | Key | Action |
 |---|---|
-| `E` | **Toggle arm / disarm** — press once to arm |
-| `W` | Drive forward |
-| `S` | Drive reverse |
-| `A` | Rotate left (tank turn) |
-| `D` | Rotate right (tank turn) |
-| `E` again | Disarm |
+| `E` | Toggle arm / disarm |
+| `W` | Forward |
+| `S` | Reverse |
+| `A` | Rotate left |
+| `D` | Rotate right |
 | `Q` | Disarm and quit |
 
-After pressing `E` you will see `ARMED` in the terminal. The ESP32 will auto-arm over CAN once it sees zero-velocity commands for ~400 ms — this is normal, it is a safety hold.
-
-Releasing a movement key immediately sends zero velocity, and the motors cut instantly.
+## Shutdown (keyboard mode)
+1. Press `Q` on Jetson → disarms and quits
+2. `Ctrl+C` on Pi bridge → sends 3 disabled frames then closes
+3. Power off rover
 
 ---
 
-## Shutdown procedure
+---
+# MODE B — AUTONOMOUS NAVIGATION (Nav2 + SLAM)
+---
 
-1. Press `Q` in the Jetson terminal → node disarms and quits
-2. `Ctrl+C` the Pi bridge node → it sends 3 disabled frames then closes CAN
-3. Power off the rover
+## Step 1 — Flash ESP32 (only after firmware update)
+
+Same as keyboard mode. Confirm serial monitor shows `State : DISARMED`.
+
+## Step 2 — Pi: bring up CAN + start full sensor bringup (mode=2)
+
+```bash
+# Bring up CAN interface (once per boot)
+sudo ip link set can0 down 2>/dev/null || true
+sudo ip link set can0 type can bitrate 500000 restart-ms 100
+sudo ip link set can0 up
+
+# Start everything: sensors + CAN bridge in autonomous mode
+source /opt/ros/humble/setup.bash
+source ~/agv_ws/install/setup.bash
+
+ros2 launch agv_sensors bringup.launch.py
+```
+
+This starts:
+- RPLiDAR A1 → `/scan`
+- Logitech camera → `/camera/image_raw/compressed`
+- rf2o laser odometry → `/odom`  *(replaces wheel encoders)*
+- Static TF transforms
+- CAN bridge in **mode=2** (autonomous)
+
+Verify sensors are publishing (from any machine on same network):
+```bash
+ros2 topic hz /scan          # ~10 Hz
+ros2 topic hz /odom          # ~10 Hz
+ros2 topic hz /camera/image_raw/compressed  # ~30 Hz
+```
+
+## Step 3 — Jetson: start navigation stack
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/agv_ws/install/setup.bash
+
+ros2 launch agv_navigation navigation.launch.py
+```
+
+This starts (with automatic delays):
+- `robot_state_publisher` — URDF + TF tree (immediate)
+- `slam_toolbox` — live SLAM, builds map as rover drives (immediate)
+- `Nav2` — path planning + obstacle avoidance (after 3 s)
+- `YOLO safety node` — person detection → auto-disarm (after 5 s)
+
+Wait until you see in the terminal:
+```
+[slam_toolbox]: Message Filter dropping message: frame 'laser' ...
+```
+This means SLAM is receiving scans. Nav2 active message appears ~3 s later.
+
+## Step 4 — Set RC transmitter to autonomous mode
+
+Set RC **CH6 to the top position** (autonomous mode).
+
+The ESP32 serial monitor will show:
+```
+Mode: AUTO
+```
+
+## Step 5 — Arm the rover
+
+On the Jetson terminal or a separate keyboard node terminal:
+```bash
+# Publish arm_enable=True once to start the arm sequence
+ros2 topic pub --once /agv/arm_enable std_msgs/Bool "data: true"
+```
+
+Or open the keyboard node in a separate terminal (it can co-exist with Nav2):
+```bash
+ros2 run agv_keyboard keyboard_teleop
+# Press E to arm
+```
+
+The ESP32 will auto-arm once it receives `enable=1` frames.
+
+## Step 6 — Open RViz2 and send goals
+
+On the Jetson, open a new terminal:
+```bash
+source /opt/ros/humble/setup.bash
+source ~/agv_ws/install/setup.bash
+rviz2 -d ~/agv_ws/src/agv_navigation/config/rviz.rviz
+```
+
+In RViz2:
+1. You will see the **map being built** as the rover's LiDAR sweeps the room
+2. Use the **"2D Goal Pose"** tool (toolbar) to click a destination on the map
+3. Nav2 plans a path and the rover drives autonomously
+4. The YOLO safety node will cut power if a person is detected — press `E` to re-arm
+
+## Shutdown (autonomous mode)
+1. Send zero goal or `Ctrl+C` in the navigation terminal
+2. `Ctrl+C` on Pi bringup → sends 3 disabled CAN frames then closes
+3. Power off rover
 
 ---
 
@@ -150,37 +273,63 @@ Releasing a movement key immediately sends zero velocity, and the motors cut ins
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| ESP32 shows `[CAN] TWAI start failed` | CAN transceiver not wired or unpowered | Check GPIO4/5 and transceiver VCC/GND |
-| Pi node prints `CAN transmit failed` | `can0` not up | Re-run the `ip link set can0 up` commands |
-| Rover does not move after arming | ESP32 zero-hold rearm waiting | Hold still for ~400 ms after arming, then move |
-| Motors jerk at start | `RAMP_UP` too high | Already fixed in v2.3.0 — reflash the ESP32 |
-| RC signal lost warning | FlySky receiver lost signal | Check transmitter battery and CH6 position |
-| `/cmd_vel` not received on Pi | DDS domain mismatch | Ensure both Jetson and Pi are on the same `ROS_DOMAIN_ID` |
+| `[CAN] TWAI start failed` | Transceiver not wired | Check GPIO4/5, VCC/GND, CANH/CANL |
+| `CAN transmit failed` | `can0` not up | Re-run `ip link set can0 up` |
+| Rover doesn't arm in CAN mode | Zero-hold waiting | Hold still 400 ms after arming |
+| `/scan` not on Jetson | RPLiDAR not started or domain ID mismatch | Check `ros2 topic hz /scan` on Pi first |
+| Map not building | rf2o not running or bad TF | Check `ros2 topic hz /odom` — must be >0 |
+| Nav2 not accepting goals | SLAM map not yet published | Wait 10 s after launch, retry |
+| YOLO stops rover unexpectedly | Low confidence threshold | Raise `confidence_threshold` to 0.70 in navigation.launch.py |
+| Camera not publishing | Wrong `/dev/video*` device | Run `ls /dev/video*` on Pi, update sensors.launch.py |
+| Relays clicking while holding key | Keyboard node not rebuilt after KEY_TIMEOUT fix | Rebuild `agv_keyboard` and restart |
+| Motors jerk | RAMP_UP too high in ESP32 firmware | Set `RAMP_UP = 3` and reflash |
 
-### Check ROS 2 topics are flowing
-
-From any machine on the same network:
+### Useful diagnostic commands
 ```bash
-ros2 topic echo /cmd_vel
-ros2 topic hz /cmd_vel        # should show ~50 Hz
-ros2 topic echo /agv/arm_enable
+# Check all running nodes
+ros2 node list
+
+# Check all active topics
+ros2 topic list
+
+# Verify TF tree is complete (map→odom→base_link→laser)
+ros2 run tf2_tools view_frames
+
+# Watch Nav2 state
+ros2 topic echo /navigate_to_pose/_action/status
+
+# Watch YOLO detections
+ros2 topic echo /agv/yolo_detections
+
+# Live costmap debug
+ros2 topic hz /global_costmap/costmap
 ```
 
 ---
 
-## ROS_DOMAIN_ID (important for multi-machine setup)
+## File structure reference
 
-Both the Jetson and Pi must use the same domain ID or their nodes won't see each other. Set this in `~/.bashrc` on **both** machines:
-
-```bash
-echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
-source ~/.bashrc
 ```
-
-Use any number 0–101; just keep it the same on both devices.
-
----
-
-## Quick-start scripts
-
-See [`Raspberry Pi/setup/start_bridge.sh`](Raspberry%20Pi/setup/start_bridge.sh) and [`Jetson/setup/start_teleop.sh`](Jetson/setup/start_teleop.sh) for one-command startup on each device.
+AGV Full Stack/
+├── STARTUP.md                          ← this file
+├── platformio.ini
+├── Esp32/
+│   └── ESP32_UGV_Controller.../       ← flash to ESP32 via PlatformIO
+├── Raspberry Pi/
+│   ├── agv_can_bridge/                ← cmd_vel → CAN bridge
+│   └── agv_sensors/                   ← RPLiDAR + camera + rf2o + TF
+│       └── launch/
+│           ├── sensors.launch.py      ← sensors only
+│           └── bringup.launch.py      ← sensors + CAN bridge (autonomous)
+└── Jetson/
+    ├── agv_keyboard/                  ← keyboard teleop node
+    └── agv_navigation/                ← SLAM + Nav2 + YOLO
+        ├── urdf/agv.urdf.xacro        ← rover geometry
+        ├── config/
+        │   ├── slam_toolbox.yaml      ← SLAM params
+        │   ├── nav2_params.yaml       ← Nav2 / DWB params
+        │   ├── costmap.yaml           ← obstacle inflation
+        │   └── rviz.rviz              ← RViz2 layout
+        └── launch/
+            └── navigation.launch.py  ← full Jetson launch
+```
