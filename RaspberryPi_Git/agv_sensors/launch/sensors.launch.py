@@ -85,7 +85,18 @@ def generate_launch_description():
     # Estimates robot motion from consecutive LiDAR scans.
     # Replaces wheel encoders — works on flat indoor floors.
     # Publishes /odom and the odom → base_link TF.
+    #
+    # NOTE: This build of rf2o subscribes to /base_pose_ground_truth before
+    # it will process scans. ground_truth_publisher publishes a single latched
+    # dummy message on that topic to unblock rf2o on real hardware.
     # -------------------------------------------------------------------------
+    ground_truth_pub = Node(
+        package='agv_sensors',
+        executable='ground_truth_publisher',
+        name='ground_truth_dummy',
+        output='screen',
+    )
+
     rf2o_node = Node(
         package='rf2o_laser_odometry',
         executable='rf2o_laser_odometry_node',
@@ -98,7 +109,7 @@ def generate_launch_description():
             'base_frame_id': 'base_link',
             'odom_frame_id': 'odom',
             'init_pose_from_topic': '',
-            'freq': 10.0,          # match LiDAR scan rate
+            'freq': 6.0,
         }],
     )
 
@@ -136,6 +147,7 @@ def generate_launch_description():
     return LaunchDescription([
         rplidar_node,
         camera_node,
+        ground_truth_pub,
         rf2o_node,
         laser_tf,
         camera_tf,

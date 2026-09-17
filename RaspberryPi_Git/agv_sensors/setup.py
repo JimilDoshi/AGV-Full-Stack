@@ -22,6 +22,8 @@ setup(
     description='Pi-side sensor bringup: RPLiDAR, camera, rf2o odometry, TF.',
     license='Proprietary',
     entry_points={
-        'console_scripts': [],
+        'console_scripts': [
+            'ground_truth_publisher = agv_sensors.ground_truth_publisher:main',
+        ],
     },
 )
