@@ -1,5 +1,5 @@
 // =============================================================================
-// ESP32 SKID-STEER UGV CONTROLLER  v2.3.0
+// ESP32 SKID-STEER UGV CONTROLLER  v2.1.0
 // Hardware : ESP32 DevKit V1
 //            FlySky FS-iA10B receiver (iBUS on GPIO16)
 //            4× ROBU 24 V 250 W brushed motor controllers
@@ -9,7 +9,7 @@
 // =============================================================================
 //#define SIMULATION_MODE
 
-#define FW_VERSION "2.3.0"
+#define FW_VERSION "2.2.0"
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
@@ -76,16 +76,12 @@ const uint8_t  DAC_MIN_MOVE        = 150;    // minimum DAC to overcome motor co
 const uint8_t  DAC_MAX             = 255;
 
 // Throttle ramp (DAC counts per 20 ms tick)
-// RAMP_UP controls acceleration smoothness.
-// At 50 Hz each tick is 20 ms. DAC range that produces motion is
-// DAC_MIN_MOVE(150) → DAC_MAX(255), i.e. 105 usable counts.
-//   RAMP_UP = 3  → ~700 ms 0→full  (very smooth, recommended)
-//   RAMP_UP = 6  → ~350 ms 0→full  (moderate)
-//   RAMP_UP = 60 → ~40 ms  0→full  (original — causes jerks)
-// RAMP_DOWN = 255 means the DAC drops to zero instantly on any stop
-// command, giving the hard motor cut you want for zero-power requests.
-const uint8_t  RAMP_UP             = 3;       // ~700 ms 0→full — smooth acceleration
-const uint8_t  RAMP_DOWN           = 255;     // instant stop on zero command
+// RAMP_UP = 3  → ~700 ms 0→full  (smooth)
+// RAMP_UP = 6  → ~350 ms 0→full  (moderate)
+// RAMP_UP = 60 → ~40  ms 0→full  (original — jerky)
+// RAMP_DOWN = 255 → instant cut on zero command
+const uint8_t  RAMP_UP             = 3;       // smooth acceleration
+const uint8_t  RAMP_DOWN           = 255;     // instant stop
 
 // Direction-change sequencer timings (ms)
 const uint16_t SEQ_RAMP_BUDGET     = 150;     // max time to reach zero
