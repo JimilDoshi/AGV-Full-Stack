@@ -11,7 +11,7 @@ set -e
 # --------------------------------------------------------------------------
 CAN_IFACE="can0"
 CAN_BITRATE=500000
-WHEEL_SEPARATION=0.60   # metres, left-wheel centre to right-wheel centre
+WHEEL_SEPARATION=0.66   # metres, wheel centre to wheel centre
 MAX_WHEEL_SPEED=1.0     # m/s, maximum wheel speed
 MODE=1                  # 1 = Jetson keyboard, 2 = Autoware autonomous
 AGV_WS="${HOME}/agv_ws"

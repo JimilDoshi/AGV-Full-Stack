@@ -1,0 +1,104 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        Value: /map
+      Update Topic:
+        Value: /map_updates
+      Value: true
+
+    - Class: rviz_default_plugins/LaserScan
+      Color: 255; 0; 0
+      Enabled: true
+      Name: LiDAR Scan
+      Size (m): 0.05
+      Topic:
+        Value: /scan
+      Value: true
+
+    - Class: rviz_default_plugins/RobotModel
+      Enabled: true
+      Name: Robot Model
+      Topic:
+        Value: /robot_description
+      Value: true
+
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Name: TF
+      Value: true
+
+    - Alpha: 0.3
+      Class: rviz_default_plugins/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+      Name: Global Costmap
+      Topic:
+        Value: /global_costmap/costmap
+      Value: true
+
+    - Alpha: 0.5
+      Class: rviz_default_plugins/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+      Name: Local Costmap
+      Topic:
+        Value: /local_costmap/costmap
+      Value: true
+
+    - Class: rviz_default_plugins/Path
+      Color: 0; 128; 0
+      Enabled: true
+      Name: Global Path
+      Topic:
+        Value: /plan
+      Value: true
+
+    - Class: rviz_default_plugins/Path
+      Color: 0; 0; 255
+      Enabled: true
+      Name: Local Path
+      Topic:
+        Value: /local_plan
+      Value: true
+
+    - Class: rviz_default_plugins/Odometry
+      Enabled: true
+      Name: Odometry
+      Topic:
+        Value: /odom
+      Value: true
+
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: nav2_rviz_plugins/GoalTool
+      Name: 2D Goal Pose
+    - Class: rviz_default_plugins/SetInitialPose
+      Name: 2D Pose Estimate

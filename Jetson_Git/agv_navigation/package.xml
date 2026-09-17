@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agv_navigation</name>
+  <version>1.0.0</version>
+  <description>
+    Jetson-side autonomous navigation for the AGV.
+    Runs slam_toolbox (live SLAM, no prior map needed), Nav2 (path planning +
+    obstacle avoidance), robot_state_publisher (URDF), and a YOLO safety node
+    that cuts arm_enable when a person or close obstacle is detected.
+  </description>
+  <maintainer email="maintainer@example.com">AGV Team</maintainer>
+  <license>Proprietary</license>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>slam_toolbox</depend>
+  <depend>navigation2</depend>
+  <depend>nav2_bringup</depend>
+  <depend>xacro</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

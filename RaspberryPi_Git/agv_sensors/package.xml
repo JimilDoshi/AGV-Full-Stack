@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agv_sensors</name>
+  <version>1.0.0</version>
+  <description>
+    Pi-side sensor bringup for the AGV.
+    Starts RPLiDAR A1, Logitech camera (compressed), rf2o laser odometry,
+    and all static TF transforms.
+  </description>
+  <maintainer email="maintainer@example.com">AGV Team</maintainer>
+  <license>Proprietary</license>
+
+  <depend>rclpy</depend>
+  <depend>rplidar_ros</depend>
+  <depend>v4l2_camera</depend>
+  <depend>image_transport</depend>
+  <depend>rf2o_laser_odometry</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>tf2_ros</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

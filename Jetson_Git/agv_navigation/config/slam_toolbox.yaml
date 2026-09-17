@@ -1,0 +1,58 @@
+# =============================================================================
+# slam_toolbox — Online Async SLAM configuration
+# Mode: online_async — builds map live as rover drives. No prior map needed.
+# Reference: https://github.com/SteveMacenski/slam_toolbox
+# =============================================================================
+
+slam_toolbox:
+  ros__parameters:
+
+    # ----- Solver -----
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ----- Topics & frames -----
+    odom_frame:       odom
+    map_frame:        map
+    base_frame:       base_link
+    scan_topic:       /scan
+    use_map_saver:    true
+    mode:             mapping          # mapping = live SLAM, no prior map
+
+    # ----- Scan matching -----
+    # Tuned for RPLiDAR A1 (8 m range, ~5–10 Hz) in indoor environments.
+    debug_logging:            false
+    throttle_scans:           1        # process every scan
+    transform_publish_period: 0.02     # 50 Hz TF publish
+    map_update_interval:      2.0      # seconds between map updates
+    resolution:               0.05     # 5 cm map resolution — good for indoors
+    max_laser_range:          8.0      # RPLiDAR A1 max range (metres)
+    minimum_time_interval:    0.1      # min seconds between scan matches
+    transform_timeout:        0.2
+    tf_buffer_duration:       30.0
+
+    # ----- Loop closure -----
+    # How aggressively slam_toolbox attempts to close loops (correct drift).
+    # Lower = more loop closures but slower. Good balance for small indoor spaces.
+    covariance_variance_penalty_distance_scale_factor: 0.5
+    covariance_variance_penalty_angle_scale_factor:    1.0
+
+    # ----- Scan matcher params -----
+    distance_variance_penalty:  0.5
+    angle_variance_penalty:     1.0
+    fine_search_angle_offset:   0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution:    0.0349
+    minimum_angle_penalty:      0.9
+    minimum_distance_penalty:   0.5
+    use_response_expansion:     true
+
+    # ----- Occupancy grid -----
+    # Cells marked as free/occupied based on LiDAR hits.
+    # RPLiDAR A1 has ~1 degree angular resolution at 10 Hz.
+    occupancy_threshold:      10    # hits needed to mark cell occupied
+    free_threshold:           10    # misses needed to mark cell free

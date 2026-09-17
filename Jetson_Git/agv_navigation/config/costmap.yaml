@@ -1,0 +1,90 @@
+# =============================================================================
+# Nav2 Costmap configuration — shared params for global and local costmaps
+#
+# FILL_IN: robot_radius — set to ROVER_WIDTH / 2 in metres.
+#   e.g. ROVER_WIDTH = 0.55 m → robot_radius: 0.28
+#   This controls the inflation radius around obstacles — too small and the
+#   rover will clip walls; too large and it won't fit through doorways.
+# =============================================================================
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 2.0           # Hz — global map updates (heavy, keep low)
+      publish_frequency: 2.0
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: false
+      robot_radius: 0.365             # half of 73 cm wheel-end-to-wheel-end
+      resolution: 0.05                # 5 cm — matches slam_toolbox resolution
+      track_unknown_space: true
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 8.0     # RPLiDAR A1 max range
+          raytrace_min_range: 0.0
+          obstacle_max_range: 7.5
+          obstacle_min_range: 0.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.465         # robot_radius (0.365) + 0.10 safety margin
+
+      always_send_full_costmap: true
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 10.0          # Hz — local map updates fast for obstacle avoidance
+      publish_frequency: 5.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: false
+      rolling_window: true
+      width: 4                        # metres — local window around rover
+      height: 4
+      resolution: 0.05
+      robot_radius: 0.365             # half of 73 cm wheel-end-to-wheel-end
+      plugins: ["voxel_layer", "inflation_layer"]
+
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: true
+        publish_voxel_map: true
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 8.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 7.5
+          obstacle_min_range: 0.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.465         # robot_radius (0.365) + 0.10 safety margin
+
+      always_send_full_costmap: true
